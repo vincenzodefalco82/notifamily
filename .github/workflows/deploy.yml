@@ -1,0 +1,65 @@
+name: Deploy — Hetzner VPS
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/vincenzodefalco82/notifamily
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push immagine
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/notifamily:latest
+            ghcr.io/${{ github.repository_owner }}/notifamily:${{ github.sha }}
+
+      - name: Deploy su Hetzner VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: root
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            REPO_URL="https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/vincenzodefalco82/notifamily.git"
+
+            if [ ! -d /opt/notifamily/.git ]; then
+              rm -rf /opt/notifamily
+              git clone "$REPO_URL" /opt/notifamily
+            fi
+
+            cd /opt/notifamily
+            git remote set-url origin "$REPO_URL"
+            git fetch origin main
+            git reset --hard origin/main
+            echo "Codice: $(git log -1 --oneline)"
+
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            docker compose -f /opt/notifamily/infrastructure/docker-compose.prod.yml pull
+            docker compose -f /opt/notifamily/infrastructure/docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+
+            echo "=== Deploy OK: $(date) ==="
+            docker compose -f /opt/notifamily/infrastructure/docker-compose.prod.yml ps
