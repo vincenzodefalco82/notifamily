@@ -14,9 +14,15 @@ export function Login({ onAuth }) {
     setLoading(true);
     setError('');
     try {
-      const res = mode === 'login'
-        ? await api.post('/auth/login', { email: form.email, password: form.password })
-        : await api.post('/auth/register', { email: form.email, password: form.password, name: form.name, householdName: form.householdName });
+      let res;
+      if (mode === 'login') {
+        res = await api.post('/auth/login', { email: form.email, password: form.password });
+      } else {
+        const parts = form.name.trim().split(/\s+/);
+        const firstName = parts[0] || '';
+        const lastName = parts.slice(1).join(' ') || parts[0] || '';
+        res = await api.post('/auth/register', { email: form.email, password: form.password, firstName, lastName, householdName: form.householdName });
+      }
       localStorage.setItem('nf_token', res.token);
       localStorage.setItem('nf_user', JSON.stringify(res.user));
       onAuth(res.user);
