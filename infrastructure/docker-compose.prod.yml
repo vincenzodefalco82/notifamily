@@ -1,17 +1,15 @@
 # =============================================================
 # Notifamily — Docker Compose PRODUZIONE (Hetzner VPS)
-# Usa la rete Traefik già attiva da Medigest
 # =============================================================
 
 name: notifamily-prod
 
 services:
   web:
-    image: ghcr.io/vincenzodefalco82/notifamily:latest
+    image: ghcr.io/vincenzodefalco82/notifamily-web:latest
     restart: always
     labels:
       - "traefik.enable=true"
-      # HTTPS router — notifamily.com e www.notifamily.com
       - "traefik.http.routers.notifamily.rule=Host(`notifamily.com`) || Host(`www.notifamily.com`)"
       - "traefik.http.routers.notifamily.entrypoints=websecure"
       - "traefik.http.routers.notifamily.tls.certresolver=letsencrypt"
@@ -19,7 +17,29 @@ services:
     networks:
       - traefik
 
+  api:
+    image: ghcr.io/vincenzodefalco82/notifamily-api:latest
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://notifamily_user:notiFamily_prod_2026@medigest-postgres:5432/notifamily
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: https://notifamily.com
+      PORT: 3100
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.notifamily-api.rule=Host(`api.notifamily.com`)"
+      - "traefik.http.routers.notifamily-api.entrypoints=websecure"
+      - "traefik.http.routers.notifamily-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.notifamily-api.loadbalancer.server.port=3100"
+    volumes:
+      - uploads:/uploads
+    networks:
+      - traefik
+
 networks:
   traefik:
     external: true
     name: medigest-prod_default
+
+volumes:
+  uploads:

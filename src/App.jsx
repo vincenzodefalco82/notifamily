@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { tFn } from './i18n.js';
 import { Shell } from './shell.jsx';
 import { TweaksPanel, TWEAK_DEFAULTS } from './tweaks.jsx';
+import { Login } from './Login.jsx';
 import { DashboardPage } from './dashboard.jsx';
 import { CalendarPage } from './calendar.jsx';
 import { DeadlinesPage } from './deadlines.jsx';
@@ -16,6 +17,12 @@ import { SettingsPage } from './settings.jsx';
 import { ApiPage } from './api.jsx';
 
 export default function App() {
+  const [user, setUser] = useState(() => {
+    const u = localStorage.getItem('nf_user');
+    const t = localStorage.getItem('nf_token');
+    return u && t ? JSON.parse(u) : null;
+  });
+
   const [state, setState] = useState(() => {
     const saved = JSON.parse(localStorage.getItem('notifamily_state') || '{}');
     return {
@@ -24,7 +31,7 @@ export default function App() {
       theme: TWEAK_DEFAULTS.theme,
       density: TWEAK_DEFAULTS.density,
       empty: TWEAK_DEFAULTS.empty,
-      notifCount: 2,
+      notifCount: 0,
       ...saved,
     };
   });
@@ -37,6 +44,10 @@ export default function App() {
       page: state.page, lang: state.lang, theme: state.theme, density: state.density, empty: state.empty,
     }));
   }, [state.theme, state.density, state.lang, state.page, state.empty]);
+
+  if (!user) {
+    return <Login onAuth={setUser} />;
+  }
 
   const t = tFn(state.lang);
 
@@ -72,6 +83,12 @@ export default function App() {
 
   const Page = pages[state.page] || DashboardPage;
 
+  function logout() {
+    localStorage.removeItem('nf_token');
+    localStorage.removeItem('nf_user');
+    setUser(null);
+  }
+
   return (
     <>
       <Shell
@@ -79,8 +96,10 @@ export default function App() {
         setState={setState}
         currentPageTitle={pageMeta.title}
         headerService={pageMeta.svc}
+        user={user}
+        onLogout={logout}
       >
-        <Page state={state} setState={setState} />
+        <Page state={state} setState={setState} user={user} />
       </Shell>
       <TweaksPanel state={state} setState={setState} />
     </>

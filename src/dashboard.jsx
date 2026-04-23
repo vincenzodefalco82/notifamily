@@ -1,17 +1,46 @@
 import { useState } from 'react';
 import { tFn, formatCurrency, formatDate } from './i18n.js';
-import { getData, getEvents } from './data.js';
 import { Icon, CategoryIcon } from './icons.jsx';
 import { Card, Button, Badge, EmptyState, Drawer, Donut } from './ui.jsx';
 import { InfoItem } from './calendar.jsx';
+import { useEvents, useBudgetSummary } from './api/hooks.js';
+import { EventForm } from './forms/index.jsx';
 
-export function DashboardPage({ state, setState }) {
+export function DashboardPage({ state, setState, user }) {
   const t = tFn(state.lang);
-  const data = getData(state.empty);
-  const events = getEvents(state.empty);
   const lang = state.lang;
+  const { data: events = [], isLoading } = useEvents();
+  const { data: summary } = useBudgetSummary();
+  const [formItem, setFormItem] = useState(false);
 
-  if (state.empty) {
+  const now = new Date();
+  const next30 = events.filter(e => {
+    const diff = (new Date(e.date) - now) / (1000*60*60*24);
+    return diff >= -1 && diff <= 30;
+  });
+  const totalNext30 = next30.reduce((s, e) => s + (e.amount || 0), 0);
+
+  const monthSpend = summary?.outflow ?? 0;
+  const income = summary?.income ?? 0;
+
+  const hour = now.getHours();
+  const greet = hour < 12 ? t('dashboard.greetingMorning') : hour < 18 ? t('dashboard.greetingAfternoon') : t('dashboard.greetingEvening');
+  const userName = user?.name?.split(' ')[0] || '';
+
+  const byCat = {};
+  next30.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + (e.amount || 0); });
+  const catColors = {
+    util: 'var(--cat-util)', rent: 'var(--cat-rent)', worker: 'var(--cat-worker)',
+    tax: 'var(--cat-tax)', insurance: 'var(--cat-insurance)', subscription: 'var(--cat-subscription)',
+    health: 'var(--cat-health)', family: 'var(--cat-family)', doc: 'var(--cat-doc)',
+  };
+  const catLabels = lang === 'it'
+    ? { util: 'Utenze', rent: 'Affitti/Mutui', worker: 'Lavoratori', tax: 'Tasse', insurance: 'Assicurazioni', subscription: 'Abbonamenti', health: 'Salute', family: 'Famiglia', doc: 'Documenti' }
+    : { util: 'Utilities', rent: 'Rent/Mortgage', worker: 'Workers', tax: 'Taxes', insurance: 'Insurance', subscription: 'Subscriptions', health: 'Health', family: 'Family', doc: 'Documents' };
+
+  if (isLoading) return <div className="page"><div className="text-muted" style={{ padding: 32 }}>Caricamento…</div></div>;
+
+  if (!events.length) {
     return (
       <div className="page">
         <div className="page-header">
@@ -25,37 +54,13 @@ export function DashboardPage({ state, setState }) {
             icon="users"
             title={t('empty.title')}
             desc={t('empty.desc')}
-            cta={<Button variant="primary" icon="plus">{t('empty.cta')}</Button>}
+            cta={<Button variant="primary" icon="plus" onClick={() => setFormItem(null)}>{t('empty.cta')}</Button>}
           />
         </Card>
+        {formItem !== false && <EventForm initial={formItem} lang={lang} onClose={() => setFormItem(false)} />}
       </div>
     );
   }
-
-  const now = new Date();
-  const next30 = events.filter(e => {
-    const diff = (new Date(e.date) - now) / (1000*60*60*24);
-    return diff >= -1 && diff <= 30;
-  });
-  const totalNext30 = next30.reduce((s, e) => s + (e.amount || 0), 0);
-
-  const monthSpend = 3780;
-  const monthPrev = 4120;
-  const delta = ((monthSpend - monthPrev) / monthPrev) * 100;
-
-  const hour = now.getHours();
-  const greet = hour < 12 ? t('dashboard.greetingMorning') : hour < 18 ? t('dashboard.greetingAfternoon') : t('dashboard.greetingEvening');
-
-  const byCat = {};
-  next30.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + (e.amount || 0); });
-  const catColors = {
-    util: 'var(--cat-util)', rent: 'var(--cat-rent)', worker: 'var(--cat-worker)',
-    tax: 'var(--cat-tax)', insurance: 'var(--cat-insurance)', subscription: 'var(--cat-subscription)',
-    health: 'var(--cat-health)', family: 'var(--cat-family)', doc: 'var(--cat-doc)',
-  };
-  const catLabels = lang === 'it'
-    ? { util: 'Utenze', rent: 'Affitti/Mutui', worker: 'Lavoratori', tax: 'Tasse', insurance: 'Assicurazioni', subscription: 'Abbonamenti', health: 'Salute', family: 'Famiglia', doc: 'Documenti' }
-    : { util: 'Utilities', rent: 'Rent/Mortgage', worker: 'Workers', tax: 'Taxes', insurance: 'Insurance', subscription: 'Subscriptions', health: 'Health', family: 'Family', doc: 'Documents' };
 
   const donutSegs = Object.entries(byCat)
     .sort((a,b) => b[1]-a[1])
@@ -79,7 +84,7 @@ export function DashboardPage({ state, setState }) {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">{greet}, Marco</h1>
+          <h1 className="page-title">{greet}{userName ? `, ${userName}` : ''}</h1>
           <p className="page-subtitle">
             {lang === 'it'
               ? `${next30.length} scadenze nei prossimi 30 giorni · ${weekEvents.length} questa settimana · ${formatCurrency(totalNext30, lang)} totali`
@@ -88,8 +93,7 @@ export function DashboardPage({ state, setState }) {
           </p>
         </div>
         <div className="page-actions">
-          <Button icon="download">{lang === 'it' ? 'Esporta' : 'Export'}</Button>
-          <Button variant="primary" icon="plus">{lang === 'it' ? 'Nuova scadenza' : 'New deadline'}</Button>
+          <Button variant="primary" icon="plus" onClick={() => setFormItem(null)}>{lang === 'it' ? 'Nuova scadenza' : 'New deadline'}</Button>
         </div>
       </div>
 
@@ -160,13 +164,12 @@ export function DashboardPage({ state, setState }) {
             <div className="hstack" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
                 <div className="stat-value" style={{ fontSize: 28 }}>{formatCurrency(monthSpend, lang)}</div>
-                <div className="hstack" style={{ gap: 8, marginTop: 4 }}>
-                  <span className={`stat-delta ${delta > 0 ? 'up' : 'down'}`}>
-                    <Icon name={delta > 0 ? 'arrowUp' : 'arrowDown'} size={10} stroke={2.5} />
-                    {Math.abs(delta).toFixed(1)}%
-                  </span>
-                  <span className="stat-label">vs {formatCurrency(monthPrev, lang)}</span>
-                </div>
+                {income > 0 && (
+                  <div className="hstack" style={{ gap: 8, marginTop: 4 }}>
+                    <Badge kind={monthSpend <= income ? 'success' : 'danger'}>{Math.round((monthSpend / income) * 100)}%</Badge>
+                    <span className="stat-label">{lang === 'it' ? 'del reddito' : 'of income'}</span>
+                  </div>
+                )}
               </div>
               <Donut segments={donutSegs} size={108} stroke={16} />
             </div>
@@ -187,10 +190,11 @@ export function DashboardPage({ state, setState }) {
 
       {selectedEvent && (
         <Drawer open title={selectedEvent.title} service="deadline-service" onClose={() => setSelectedEvent(null)}
-          footer={<><Button onClick={() => setSelectedEvent(null)}>{t('common.close')}</Button><Button variant="primary">{t('common.edit')}</Button></>}>
+          footer={<><Button onClick={() => setSelectedEvent(null)}>{t('common.close')}</Button><Button variant="primary" onClick={() => { setSelectedEvent(null); setFormItem(selectedEvent); }}>{t('common.edit')}</Button></>}>
           <InfoItem ev={selectedEvent} lang={lang} asDetail />
         </Drawer>
       )}
+      {formItem !== false && <EventForm initial={formItem} lang={lang} onClose={() => setFormItem(false)} />}
     </div>
   );
 }

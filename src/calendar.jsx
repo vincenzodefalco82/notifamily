@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { tFn, formatCurrency, formatDate } from './i18n.js';
-import { getEvents, getData } from './data.js';
 import { Icon } from './icons.jsx';
 import { Card, Button, Badge, Seg, Drawer } from './ui.jsx';
+import { useEvents } from './api/hooks.js';
+import { EventForm } from './forms/index.jsx';
 
 export function CalendarPage({ state, setState }) {
   const t = tFn(state.lang);
   const lang = state.lang;
-  const events = getEvents(state.empty);
+  const { data: events = [] } = useEvents();
   const [view, setView] = useState('month');
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const [selected, setSelected] = useState(null);
+  const [formItem, setFormItem] = useState(false);
 
   const months = lang === 'it'
     ? ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
@@ -38,7 +40,7 @@ export function CalendarPage({ state, setState }) {
             { value: 'month', label: t('common.month') },
           ]} />
           <Button icon="link">{lang === 'it' ? 'Sincronizza' : 'Sync'}</Button>
-          <Button variant="primary" icon="plus">{lang === 'it' ? 'Nuovo evento' : 'New event'}</Button>
+          <Button variant="primary" icon="plus" onClick={() => setFormItem(null)}>{lang === 'it' ? 'Nuovo evento' : 'New event'}</Button>
         </div>
       </div>
 
@@ -97,21 +99,22 @@ export function CalendarPage({ state, setState }) {
             <FilterCheck label={lang === 'it' ? 'Abbonamenti' : 'Subscriptions'} color="var(--cat-subscription)" defaultChecked />
             <FilterCheck label={lang === 'it' ? 'Famiglia' : 'Family'} color="var(--cat-family)" defaultChecked />
             <FilterCheck label={lang === 'it' ? 'Salute' : 'Health'} color="var(--cat-health)" defaultChecked />
-            <div className="sep" />
-            <div className="nav-group-label" style={{ paddingLeft: 0, paddingTop: 0 }}>{lang === 'it' ? 'Membri' : 'Members'}</div>
-            {getData(state.empty).members.map(m => (
-              <FilterCheck key={m.id} label={`${m.firstName} ${m.lastName}`} color={`oklch(0.6 0.13 ${m.color})`} defaultChecked />
-            ))}
           </Card>
         </div>
       </div>
 
       {selected && (
         <Drawer open title={selected.title} service="deadline-service" onClose={() => setSelected(null)}
-          footer={<><Button onClick={() => setSelected(null)}>{t('common.close')}</Button><Button variant="primary">{t('common.edit')}</Button></>}>
+          footer={
+            <>
+              <Button onClick={() => { setSelected(null); setFormItem(selected); }}>{t('common.edit')}</Button>
+              <Button onClick={() => setSelected(null)}>{t('common.close')}</Button>
+            </>
+          }>
           <EventDetail ev={selected} lang={lang} />
         </Drawer>
       )}
+      {formItem !== false && <EventForm initial={formItem} lang={lang} onClose={() => setFormItem(false)} />}
     </div>
   );
 }

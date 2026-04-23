@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  firstName    String     @map("first_name")
+  lastName     String     @map("last_name")
+  role         String     @default("owner")
+  householdId  String?    @map("household_id")
+  household    Household? @relation(fields: [householdId], references: [id])
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@map("users")
+}
+
+model Tenant {
+  id         String      @id @default(cuid())
+  name       String
+  plan       String      @default("Famiglia Plus")
+  region     String      @default("eu")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  households Household[]
+
+  @@map("tenants")
+}
+
+model Household {
+  id            String         @id @default(cuid())
+  name          String
+  tenantId      String         @map("tenant_id")
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  createdAt     DateTime       @default(now()) @map("created_at")
+  users         User[]
+  members       Member[]
+  properties    Property[]
+  vehicles      Vehicle[]
+  contracts     Contract[]
+  workers       Worker[]
+  events        Event[]
+  documents     Document[]
+  transactions  Transaction[]
+  notifications Notification[]
+
+  @@map("households")
+}
+
+model Member {
+  id          String    @id @default(cuid())
+  householdId String    @map("household_id")
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  birthDate   DateTime? @map("birth_date")
+  role        String    @default("dependent")
+  relation    String    @default("")
+  email       String?
+  color       Int       @default(220)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  vehicles    Vehicle[]
+
+  @@map("members")
+}
+
+model Property {
+  id          String     @id @default(cuid())
+  householdId String     @map("household_id")
+  household   Household  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  name        String
+  type        String     @default("home")
+  address     String?
+  size        Float?
+  rooms       Int?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  contracts   Contract[]
+  workers     Worker[]
+
+  @@map("properties")
+}
+
+model Vehicle {
+  id           String    @id @default(cuid())
+  householdId  String    @map("household_id")
+  household    Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  brand        String
+  model        String
+  plate        String
+  ownerId      String?   @map("owner_id")
+  owner        Member?   @relation(fields: [ownerId], references: [id])
+  insuranceEnd DateTime? @map("insurance_end")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  contracts    Contract[]
+
+  @@map("vehicles")
+}
+
+model Contract {
+  id            String    @id @default(cuid())
+  householdId   String    @map("household_id")
+  household     Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  type          String
+  category      String    @default("util")
+  provider      String
+  clientCode    String?   @map("client_code")
+  amountMonthly Float     @map("amount_monthly")
+  billingCycle  String    @default("monthly") @map("billing_cycle")
+  nextDue       DateTime  @map("next_due")
+  autopay       Boolean   @default(false)
+  paymentMethod String?   @map("payment_method")
+  propertyId    String?   @map("property_id")
+  property      Property? @relation(fields: [propertyId], references: [id])
+  vehicleId     String?   @map("vehicle_id")
+  vehicle       Vehicle?  @relation(fields: [vehicleId], references: [id])
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@map("contracts")
+}
+
+model Worker {
+  id            String    @id @default(cuid())
+  householdId   String    @map("household_id")
+  household     Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  role          String    @default("colf")
+  hoursWeek     Int       @default(20) @map("hours_week")
+  hourlyGross   Float     @map("hourly_gross")
+  monthlyNet    Float     @map("monthly_net")
+  inpsMonthly   Float     @map("inps_monthly")
+  tfrAccrual    Float     @default(0) @map("tfr_accrual")
+  nextSalaryDue DateTime  @map("next_salary_due")
+  nextInpsDue   DateTime  @map("next_inps_due")
+  startDate     DateTime  @map("start_date")
+  propertyId    String?   @map("property_id")
+  property      Property? @relation(fields: [propertyId], references: [id])
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@map("workers")
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  householdId String    @map("household_id")
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  title       String
+  category    String    @default("family")
+  amount      Float?
+  date        DateTime
+  recurring   String?
+  autopay     Boolean   @default(false)
+  sourceType  String?   @map("source_type")
+  sourceId    String?   @map("source_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("events")
+}
+
+model Document {
+  id          String    @id @default(cuid())
+  householdId String    @map("household_id")
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  name        String
+  type        String    @default("contract")
+  size        Int       @default(0)
+  linkedTo    String?   @map("linked_to")
+  uploadedAt  DateTime  @default(now()) @map("uploaded_at")
+
+  @@map("documents")
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  householdId String    @map("household_id")
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  title       String
+  body        String
+  type        String    @default("info")
+  unread      Boolean   @default(true)
+  at          DateTime  @default(now())
+
+  @@map("notifications")
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  householdId String    @map("household_id")
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  kind        String
+  amount      Float
+  category    String
+  note        String?
+  date        DateTime
+  linkedTo    String?   @map("linked_to")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("transactions")
+}

@@ -1,20 +1,31 @@
 import { useState } from 'react';
 import { tFn, formatCurrency } from './i18n.js';
-import { getEvents } from './data.js';
 import { Card, EmptyState, Button } from './ui.jsx';
 import { DeadlineRow } from './dashboard.jsx';
 import { PageHeader } from './household.jsx';
+import { useEvents } from './api/hooks.js';
+import { EventForm } from './forms/index.jsx';
 
 export function DeadlinesPage({ state, setState }) {
   const t = tFn(state.lang);
   const lang = state.lang;
-  const events = getEvents(state.empty);
+  const { data: events = [], isLoading } = useEvents();
+  const [formItem, setFormItem] = useState(false);
 
-  if (state.empty) {
+  if (isLoading) return <div className="page"><div className="text-muted" style={{ padding: 32 }}>Caricamento…</div></div>;
+
+  if (!events.length) {
     return (
       <div className="page">
         <PageHeader title={t('nav.deadlines')} />
-        <Card><EmptyState icon="clock" title={lang === 'it' ? 'Nessuna scadenza' : 'No deadlines'} desc={lang === 'it' ? 'Aggiungi contratti e lavoratori per vedere le scadenze.' : 'Add contracts and workers to see deadlines.'} /></Card>
+        <Card>
+          <EmptyState icon="clock"
+            title={lang === 'it' ? 'Nessuna scadenza' : 'No deadlines'}
+            desc={lang === 'it' ? 'Aggiungi eventi o contratti per vedere le scadenze.' : 'Add events or contracts to see deadlines.'}
+            cta={<Button variant="primary" icon="plus" onClick={() => setFormItem(null)}>{lang === 'it' ? 'Nuova scadenza' : 'New deadline'}</Button>}
+          />
+        </Card>
+        {formItem !== false && <EventForm initial={formItem} lang={lang} onClose={() => setFormItem(false)} />}
       </div>
     );
   }
@@ -32,7 +43,7 @@ export function DeadlinesPage({ state, setState }) {
       <PageHeader
         title={t('nav.deadlines')}
         sub={lang === 'it' ? `${events.length} scadenze tracciate` : `${events.length} tracked deadlines`}
-        actions={<><Button icon="filter">{lang === 'it' ? 'Filtra' : 'Filter'}</Button><Button variant="primary" icon="plus">{lang === 'it' ? 'Nuova scadenza' : 'New deadline'}</Button></>}
+        actions={<Button variant="primary" icon="plus" onClick={() => setFormItem(null)}>{lang === 'it' ? 'Nuova scadenza' : 'New deadline'}</Button>}
       />
 
       <div className="vstack" style={{ gap: 'var(--gap)' }}>
@@ -65,6 +76,8 @@ export function DeadlinesPage({ state, setState }) {
           <div className="list">{groups.later.slice(0, 8).map(e => <DeadlineRow key={e.id} ev={e} lang={lang} />)}</div>
         </Card>
       </div>
+
+      {formItem !== false && <EventForm initial={formItem} lang={lang} onClose={() => setFormItem(false)} />}
     </div>
   );
 }
